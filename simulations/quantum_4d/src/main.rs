@@ -143,7 +143,8 @@ fn pt_swap(zs: &mut [Lattice], betas: &[f64], p_template: &Params, rng: &mut imp
 // Измерения
 // ============================================================
 #[derive(Clone)]
-struct RawMeas { e: f64, v_abs: f64, v_stag: f64, v_stag2: f64, v_stag4: f64 }
+struct RawMeas { e: f64, v_abs: f64, v_stag: f64, v_stag2: f64, v_stag4: f64,
+    w_1x1: f64, w_1x2: f64, w_2x1: f64, w_2x2: f64 }
 
 fn measure_one(z: &Lattice, p: &Params, c: &TC) -> RawMeas {
     let (nn, nc) = (nspin(p) as f64, (p.l*p.l*p.l) as f64);
@@ -168,7 +169,28 @@ fn measure_one(z: &Lattice, p: &Params, c: &TC) -> RawMeas {
         let stag = cs/(p.lt*p.m) as f64;
         vs += stag.abs(); vs2 += stag*stag; vs4 += stag.powi(4);
     }}}
-    RawMeas{e:e/nn, v_abs:v_sum.abs()/nn, v_stag:vs/nc, v_stag2:vs2/nc, v_stag4:vs4/nc}
+    RawMeas{e:e/nn, v_abs:v_sum.abs()/nn, v_stag:vs/nc, v_stag2:vs2/nc, v_stag4:vs4/nc,
+        w_1x1: wilson_loop(z,p,1,1), w_1x2: wilson_loop(z,p,1,2),
+        w_2x1: wilson_loop(z,p,2,1), w_2x2: wilson_loop(z,p,2,2) }
+}
+
+/// Петля Вильсона R×T в x-t плоскости
+fn wilson_loop(z: &Lattice, p: &Params, r: usize, t_loop: usize) -> f64 {
+    if p.l < r+1 || p.lt < t_loop+1 { return f64::NAN; }
+    let (mut w, mut cnt) = (0.0f64, 0u64);
+    for x in 0..p.l-r {
+        for y in 0..p.l { for zc in 0..p.l {
+            for t in 0..p.lt-t_loop {
+                let mut prod = 1.0f64;
+                for dx in 0..r { prod *= z[idx(p,x+dx,y,zc,t,0)] as f64; }
+                for dt in 0..t_loop { prod *= z[idx(p,x+r,y,zc,t+dt,0)] as f64; }
+                for dx in 0..r { prod *= z[idx(p,x+r-dx,y,zc,t+t_loop,0)] as f64; }
+                for dt in 0..t_loop { prod *= z[idx(p,x,y,zc,t+t_loop-dt,0)] as f64; }
+                w += prod; cnt += 1;
+            }
+        }}
+    }
+    if cnt > 0 { w / cnt as f64 } else { f64::NAN }
 }
 
 // ============================================================
@@ -220,6 +242,7 @@ struct Meas {
     v_stag: f64, v_stag_err: f64, binder: f64, binder_err: f64,
     tau_int_e: f64, gamma: f64, l: usize, beta: f64,
     n_thermal: usize, n_samples: usize, n_spins: usize,
+    wilson_1x1: f64, wilson_1x2: f64, wilson_2x2: f64,
 }
 
 fn run(cli: &Cli, gamma: f64, l: usize) -> Meas {
@@ -275,11 +298,18 @@ fn run(cli: &Cli, gamma: f64, l: usize) -> Meas {
     let (va, va_err) = jackknife(&v_data, cli.n_bins);
     let (vs, vs_err) = jackknife(&vs_data, cli.n_bins);
     let (b, b_err) = binder_jk(&vs_data, &vs2_data, &vs4_data, cli.n_bins);
+    let w_data: Vec<f64> = raw.iter().map(|r| r.w_1x1).filter(|x| x.is_finite()).collect();
+    let w_1x1 = if w_data.len()>0 { w_data.iter().sum::<f64>()/w_data.len() as f64 } else { f64::NAN };
+    let w_data2: Vec<f64> = raw.iter().map(|r| r.w_1x2).filter(|x| x.is_finite()).collect();
+    let w_1x2 = if w_data2.len()>0 { w_data2.iter().sum::<f64>()/w_data2.len() as f64 } else { f64::NAN };
+    let w_data3: Vec<f64> = raw.iter().map(|r| r.w_2x2).filter(|x| x.is_finite()).collect();
+    let w_2x2 = if w_data3.len()>0 { w_data3.iter().sum::<f64>()/w_data3.len() as f64 } else { f64::NAN };
     
     Meas { e:e_mean, e_err, v_abs:va, v_abs_err:va_err,
         v_stag:vs, v_stag_err:vs_err, binder:b, binder_err:b_err,
         tau_int_e:tau_e, gamma, l, beta:p.b,
-        n_thermal, n_samples:cli.samples, n_spins:nspin(&p) }
+        n_thermal, n_samples:cli.samples, n_spins:nspin(&p),
+        wilson_1x1: w_1x1, wilson_1x2: w_1x2, wilson_2x2: w_2x2 }
 }
 
 // ============================================================
@@ -306,9 +336,15 @@ fn main() {
         for &g in &gammas {
             let m = run(&cli, g, l);
             let phase = if m.v_stag>0.3 {"АФМ"} else if m.v_abs<0.2 {"пара"} else {"крит"};
+            // Wilson: area law (W_2x2≈W_1x1^4) → confinement; perimeter (W_2x2≈W_1x2^2) → deconfinement
+            let w_diag = if m.wilson_1x1.is_finite() && m.wilson_2x2.is_finite() {
+                let area_pred = m.wilson_1x1.powi(4);
+                let perim_pred = m.wilson_1x2.powi(2);
+                if (m.wilson_2x2-perim_pred).abs() < (m.wilson_2x2-area_pred).abs() {"deconf"} else {"conf"}
+            } else {"?"};
             if cli.json { all.push(m.clone()); }
-            else { println!("{:4} {:6.2} {:10.4} {:10.4} {:10.4} {:10.4} {:7.2} {:>5}",
-                l,g,m.v_abs,m.v_stag,m.e,m.binder,m.tau_int_e,phase); }
+            else { println!("{:4} {:6.2} {:10.4} {:10.4} {:10.4} {:10.4} {:7.2} {:>5}  W:{:.3}/{:.3} {}",
+                l,g,m.v_abs,m.v_stag,m.e,m.binder,m.tau_int_e,phase,m.wilson_1x1,m.wilson_2x2,w_diag); }
             all.push(m);
         }
     }
