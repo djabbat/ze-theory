@@ -25,7 +25,7 @@ def energy_4d(z, L, Lt, J_t, J_s, h):
                     # поле
                     E -= h * z[x, y, zz, t]
                     # временная связь
-                    E -= J_t * z[x, y, zz, t] * z[x, y, zz, (t+1) % Lt]
+                    E += J_t * z[x, y, zz, t] * z[x, y, zz, (t+1) % Lt]
                     # пространственные связи
                     E -= J_s * z[x, y, zz, t] * z[(x+1) % L, y, zz, t]
                     E -= J_s * z[x, y, zz, t] * z[x, (y+1) % L, zz, t]
@@ -47,7 +47,7 @@ def metropolis_sweep_4d(z, L, Lt, J_t, J_s, h, beta, n_sweeps=1):
             
             # локальная энергия
             e_old = -h * z[x, y, zz, t]
-            e_old -= 2*J_t * z[x, y, zz, t] * z[x, y, zz, (t+1) % Lt]
+            e_old += 2*J_t * z[x, y, zz, t] * z[x, y, zz, (t+1) % Lt]
             e_old -= 2*J_s * z[x, y, zz, t] * z[(x+1) % L, y, zz, t]
             e_old -= 2*J_s * z[x, y, zz, t] * z[x, (y+1) % L, zz, t]
             e_old -= 2*J_s * z[x, y, zz, t] * z[x, y, (zz+1) % L, t]
@@ -55,7 +55,7 @@ def metropolis_sweep_4d(z, L, Lt, J_t, J_s, h, beta, n_sweeps=1):
             z[x, y, zz, t] = -z[x, y, zz, t]
             
             e_new = -h * z[x, y, zz, t]
-            e_new -= 2*J_t * z[x, y, zz, t] * z[x, y, zz, (t+1) % Lt]
+            e_new += 2*J_t * z[x, y, zz, t] * z[x, y, zz, (t+1) % Lt]
             e_new -= 2*J_s * z[x, y, zz, t] * z[(x+1) % L, y, zz, t]
             e_new -= 2*J_s * z[x, y, zz, t] * z[x, (y+1) % L, zz, t]
             e_new -= 2*J_s * z[x, y, zz, t] * z[x, y, (zz+1) % L, t]

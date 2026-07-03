@@ -154,8 +154,8 @@ def metropolis_sweep(z, L, M, K_t, K_tau, K_h, n_sweeps=1):
             # Локальная энергия
             e_old = -K_h * z[t, tau]
             # реальное время (антиферромагнитное)
-            e_old += -K_t * z[t, tau] * z[(t-1)%L, tau]
-            e_old += -K_t * z[t, tau] * z[(t+1)%L, tau]
+            e_old += K_t * z[t, tau] * z[(t-1)%L, tau]
+            e_old += K_t * z[t, tau] * z[(t+1)%L, tau]
             # мнимое время (ферромагнитное)
             e_old += -K_tau * z[t, tau] * z[t, (tau-1)%M]
             e_old += -K_tau * z[t, tau] * z[t, (tau+1)%M]
@@ -163,8 +163,8 @@ def metropolis_sweep(z, L, M, K_t, K_tau, K_h, n_sweeps=1):
             z[t, tau] = -z[t, tau]
             
             e_new = -K_h * z[t, tau]
-            e_new += -K_t * z[t, tau] * z[(t-1)%L, tau]
-            e_new += -K_t * z[t, tau] * z[(t+1)%L, tau]
+            e_new += K_t * z[t, tau] * z[(t-1)%L, tau]
+            e_new += K_t * z[t, tau] * z[(t+1)%L, tau]
             e_new += -K_tau * z[t, tau] * z[t, (tau-1)%M]
             e_new += -K_tau * z[t, tau] * z[t, (tau+1)%M]
             

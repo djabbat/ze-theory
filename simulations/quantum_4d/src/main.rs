@@ -106,8 +106,8 @@ fn metropolis_sweep(z: &mut Lattice5D, p: &Params, c: &TrotterCouplings, rng: &m
         // соседи по времени (АФМ — знак не меняем, staggered уже учтён)
         let t_next = (t + 1) % p.lt;
         let t_prev = (t + p.lt - 1) % p.lt;
-        e_old -= c.k_t * z[idx_flat] * z[idx(p.lx,p.ly,p.lz,p.lt,p.m_trotter, x,y,z_coord,t_next,tau)];
-        e_old -= c.k_t * z[idx_flat] * z[idx(p.lx,p.ly,p.lz,p.lt,p.m_trotter, x,y,z_coord,t_prev,tau)];
+        e_old += c.k_t * z[idx_flat] * z[idx(p.lx,p.ly,p.lz,p.lt,p.m_trotter, x,y,z_coord,t_next,tau)];
+        e_old += c.k_t * z[idx_flat] * z[idx(p.lx,p.ly,p.lz,p.lt,p.m_trotter, x,y,z_coord,t_prev,tau)];
         // соседи по пространству
         let xn = (x+1) % p.lx; let xp = (x+p.lx-1) % p.lx;
         let yn = (y+1) % p.ly; let yp = (y+p.ly-1) % p.ly;
@@ -177,7 +177,7 @@ fn measure(z: &Lattice5D, p: &Params, c: &TrotterCouplings) -> (f64, f64, f64, f
                         let taun = (tau+1) % p.m_trotter;
                         
                         energy -= c.k_h * val;
-                        energy -= c.k_t * val * z[idx(p.lx,p.ly,p.lz,p.lt,p.m_trotter, x,y,zz,tn,tau)];
+                        energy += c.k_t * val * z[idx(p.lx,p.ly,p.lz,p.lt,p.m_trotter, x,y,zz,tn,tau)];
                         energy -= c.k_s * val * z[idx(p.lx,p.ly,p.lz,p.lt,p.m_trotter, xn,y,zz,t,tau)];
                         energy -= c.k_s * val * z[idx(p.lx,p.ly,p.lz,p.lt,p.m_trotter, x,yn,zz,t,tau)];
                         energy -= c.k_s * val * z[idx(p.lx,p.ly,p.lz,p.lt,p.m_trotter, x,y,zn,t,tau)];
