@@ -365,17 +365,25 @@ Ze-теория — это **физика агентов, минимизирую
 
 [2] Fields, C., Friston, K., Glazebrook, J.F., & Levin, M. (2022). A free energy principle for generic quantum systems. *Progress in Biophysics and Molecular Biology, 173*, 36–59.
 
-[3] Wegner, F.J. (1971). Duality in generalized Ising models. *Journal of Mathematical Physics, 12*, 2259–2272.
+[3] Wegner, F.J. (1971). Duality in generalized Ising models and phase transitions without local order parameters. *Journal of Mathematical Physics, 12*, 2259–2272.
 
-[4] Jordan, P., & Wigner, E. (1928). *Zeitschrift für Physik, 47*, 631–651.
+[4] Jordan, P., & Wigner, E. (1928). Über das Paulische Äquivalenzverbot. *Zeitschrift für Physik, 47*, 631–651.
 
-[5] Gorantla, P., & Huang, T.-C. (2025). *Physical Review B, 111*, 245110.
+[5] Gorantla, P., & Huang, T.-C. (2025). Duality-preserving deformation of 3+1d lattice Z₂ gauge theory with exact gapped ground states. *Physical Review B, 111*, 245110.
 
-[6] Hermele, M., Fisher, M.P.A., & Balents, L. (2004). *Physical Review B, 69*, 064404.
+[6] Hermele, M., Fisher, M.P.A., & Balents, L. (2004). Pyrochlore photons: The U(1) spin liquid in a S=½ three-dimensional frustrated magnet. *Physical Review B, 69*, 064404.
 
-[7] Su, L., & Martin, I. (2026). Bosonization in general dimensions. *SciPost Physics, 20*, 180.
+[7] Su, L., & Martin, I. (2026). Bosonization and Kramers-Wannier dualities in general dimensions. *SciPost Physics, 20*, 180.
 
-[8] Wilson, K.G. (1974). *Physical Review D, 10*, 2445–2459.
+[8] Wilson, K.G. (1974). Confinement of quarks. *Physical Review D, 10*, 2445–2459.
+
+[9] Aspect, A., Grangier, P., & Roger, G. (1982). Experimental realization of Einstein-Podolsky-Rosen-Bohm Gedankenexperiment: A new violation of Bell's inequalities. *Physical Review Letters, 49*, 91–94.
+
+[10] Planck Collaboration. (2020). Planck 2018 results. VI. Cosmological parameters. *Astronomy & Astrophysics, 641*, A6. arXiv:1807.06209.
+
+[11] Coleman, S. (1975). Quantum sine-Gordon equation as the massive Thirring model. *Physical Review D, 11*, 2088–2097.
+
+[12] Sachdev, S. (2011). *Quantum Phase Transitions* (2nd ed.). Cambridge University Press.
 
 ---
 
