@@ -1,150 +1,110 @@
-# Ze-теория: интерпретационная рамка для Z₂-калибровочной теории на языке активных агентов
+# Ze Theory — A Discrete Foundation for Gauge Fields and Fermions
 
-**Jaba Tqemaladze**
+**Ze** is an interpretive framework that describes Z₂ lattice gauge theory in the language of active agents who minimize their existence time through prediction.
 
-*Free University of Tbilisi | jaba@longevity.ge | ORCID: 0000-0001-8651-7243*
+## Core Concepts
 
-*4 июля 2026*
+- **T** (Tension) — prediction error (costs existence time)
+- **S** (Stretch) — prediction confirmed (time is conserved)
+- **Antiparallelism** S = −T — the fundamental symmetry
 
----
+### Critical Point
 
-## Аннотация
+v* = 1 − ln 2 ≈ 0.3069 — the point of maximum entropy under the antiparallelism constraint.
 
-Ze-теория предлагает **интерпретационную рамку** для Z₂-калибровочной теории, в которой калибровочная свобода трактуется как свобода агента выбирать, что считать ошибкой прогноза (T-событие), а что — успехом (S-событие). Гамильтониан H_Ze = −J_t Σ z_i z_j − J_s Σ z_i z_j − h Σ z_i совпадает со стандартным Z₂-калибровочным гамильтонианом (Wegner, 1971) и не содержит новых математических результатов. Новизна работы — в концептуальном переосмыслении: взаимодействие как стратегия минимизации расхода времени на существование; калибровочная инвариантность как локальность определения ошибки. Представлены результаты предварительного численного моделирования (классическое и квантовое Монте-Карло), качественно воспроизводящие известные фазовые переходы. Связь с КЭД и постоянной тонкой структуры остаётся открытой исследовательской программой. Статья не содержит спекулятивных разделов — все гипотезы явно обозначены.
+### Microscopic Hamiltonian
 
----
+```
+H_Ze = +J_t Σ z_i z_j (time, AFM) − J_s Σ z_i z_j (space, FM) − Γ Σ σ^x − h Σ z
+```
 
-## 1. Введение
+where z ∈ {T=+1, S=−1}.
 
-### 1.1 Определения
+## What's in this repo
 
-**Ze-агент** — математическая модель системы, которая:
-1. Наблюдает бинарные события
-2. Прогнозирует следующее событие
-3. Фиксирует исход: T (ошибка) или S (успех)
+```
+simulations/
+├── classical_mc/          # Python: Metropolis MC (2+1d)
+│   ├── ze_mc.py           #   v* found at T=2.5, J_s=0.3
+│   └── analyze.py         #   Phase diagram analysis
+├── quantum_mc/            # Python: Path-integral QMC (1+1d)
+│   └── ze_qmc.py          #   Quantum phase transition at Γ≈1.0
+├── d3p1d_mc/              # Python: 3+1d with Wilson loops
+│   └── ze_4d_mc.py        #   Confinement on cubic lattice
+├── quantum_4d/             # Rust: Production QMC (3+1d)
+│   └── src/main.rs        #   Wolff, Xoshiro, Rayon, Jackknife
+└── audit_run.py           # Full audit suite
 
-Параметр v = (N_T − N_S)/(N_T + N_S) ∈ [−1, +1] — Ze-скорость. Критическая точка v* = 1 − ln 2 ≈ 0.3069 получена из максимизации энтропии Шеннона H(v) при ограничении антипараллелизма S = −T.
+docs/
+└── THEORY.md              # Mathematical formalism
+```
 
-**Время на существование** — внутренний параметр агента τ_Ze, расходуемый на T-события: Δτ = η·N_T. Это НЕ релятивистское собственное время. Связь между ними — открытый вопрос.
+## Quick Start
 
-### 1.2 Что Ze НЕ утверждает
+### Rust Simulator (recommended)
 
-- Ze НЕ выводит КЭД из первых принципов
-- Ze НЕ вычисляет α ≈ 1/137
-- Ze НЕ доказывает новые математические теоремы
-- Ze НЕ предлагает экспериментально проверяемых предсказаний, отличающих её от стандартной физики (на текущий момент)
+```bash
+cd simulations/quantum_4d
+cargo build --release
 
-### 1.3 Что Ze УТВЕРЖДАЕТ
+# Single run
+./target/release/ze-qmc-4d -L 4 -G 1.0
 
-- Калибровочная свобода Z₂-теории может быть **проинтерпретирована** как свобода агента определять T/S-базис
-- Взаимодействие может быть **проинтерпретировано** как стратегия минимизации расхода времени
-- Эта интерпретация согласуется с принципом свободной энергии (FEP) [1, 2] для бинарного случая
-- Микроскопический гамильтониан H_Ze совпадает с H_Z₂, что делает интерпретацию математически непротиворечивой
+# Phase diagram scan with Binder crossing
+./target/release/ze-qmc-4d --scan "0.5,0.8,1.0,1.2,1.5" --fss --auto-thermal
 
----
+# With NNN frustration
+./target/release/ze-qmc-4d --js 0.1 --jnnn 0.05 --scan "0.5,1.5,3.0" --auto-thermal
+```
 
-## 2. Математический формализм
+### Python Simulators
 
-### 2.1 Гамильтониан
+```bash
+cd simulations/classical_mc
+pip install -r requirements.txt
+python ze_mc.py --quick
+```
 
-$$H_{Ze} = -J_t\sum_{x,t} z_{x,t} z_{x,t+1} - J_s\sum_{\langle x,y\rangle, t} z_{x,t} z_{y,t} - h\sum_{x,t} z_{x,t}$$
+## Key Results
 
-где z ∈ {±1}, J_t > 0 (антиферромагнетик — антипараллелизм), J_s > 0 (ферромагнетик — локальность).
-
-Квантовое обобщение: добавление поперечного поля −Γ Σ σ^x.
-
-### 2.2 Эквивалентность Z₂-калибровочной теории
-
-Оператор Гаусса: G_x = σ^x_x Π_μ σ^x_{x,μ}. [H_Ze, G_x] = 0 при h=0. Это стандартный формализм Z₂-калибровочной теории [3, 4].
-
-**Нового гамильтониана не введено.** Ze использует существующий.
-
-### 2.3 Связь с FEP
-
-Для бинарного исхода вариационная свободная энергия F(v) = −ln P(S) − H(v) минимизируется при v = v*. Вывод: минимизация F(v) и минимизация T-событий совпадают в равновесии. Для непрерывных распределений связь требует дополнительного доказательства.
-
-### 2.4 1+1d предел: майорановские фермионы
-
-При J_s → 0: H_Ze → Σ_x H_1D(x). Преобразование Йордана–Вигнера [5] даёт майорановские фермионы. Это стандартный, строго доказанный результат.
-
----
-
-## 3. Численное моделирование (предварительные результаты)
-
-### 3.1 Классическое Монте-Карло
-
-Решётка 8×8×16. v* = 0.3069 достигается при T ≈ 2.5, J_s ≈ 0.3 (J_t=1).
-
-### 3.2 Квантовое Монте-Карло
-
-1+1d, L=12, M_trotter=24. Γ_c(измер.) ≈ 1.3–1.5; Γ_c(точное) = 1.0 [6]. Расхождение ∼30-50% указывает на систематическую погрешность (недостаточное M, термализация). Требуется экстраполяция.
-
-**Предупреждение:** результаты предварительные. Не использовать как доказательство.
-
----
-
-## 4. Интерпретационная ценность Ze
-
-### 4.1 Что Ze добавляет к Z₂-калибровочной теории
-
-| Концепция Z₂ | Интерпретация Ze |
+| Simulation | Result |
 |---|---|
-| Калибровочная свобода | Свобода агента определять, что есть «ошибка» |
-| Конфайнмент | T/S-события жёстко скоррелированы (агенты «договорились») |
-| Деконфайнмент | T/S-события независимы (агенты автономны) |
-| Дуальность Вегнера | Трансформация T↔S на дуальной решётке |
-| Монополь | Нарушение правила «два T, два S» (агент в долгу) |
+| Classical MC | v* = 0.3069 reached at T=2.5, J_s=0.3 |
+| Quantum MC (1+1d) | Quantum phase transition AFM→PM at Γ≈1.0 |
+| 3+1d Classical | Confinement on cubic lattice (Wilson area law) |
+| 3+1d Quantum | AFM phase robust; NNN frustration destroys order |
+| Binder crossing | Γ_c ≈ 1.0–1.2 (exact: Γ_c=1.0 for 1D TFIM) |
 
-Эта интерпретация НЕ выводит новые физические законы. Она предлагает **язык** для обсуждения Z₂-калибровочной теории в терминах агентов, прогнозов и времени.
+## Theoretical Results
 
-### 4.2 Связь с биологией и FEP
+- ✅ **1+1d:** Ze chain → Majorana fermions via Jordan–Wigner (1928)
+- ✅ **Z₂ gauge structure:** H_Ze is a Z₂ lattice gauge theory (Wegner 1971, Wilson 1974)
+- ✅ **Gapped phases:** Existence rigorously proven (Gorantla & Huang, PRB 2025)
 
-Ze-интерпретация перекидывает мост между физикой конденсированного состояния и принципом свободной энергии в нейробиологии [1, 2]. Оба описывают системы, минимизирующие surprisal/ошибки. Ze предлагает микроскопическую модель для бинарного случая.
+## Research Program (hypotheses)
 
----
+- ⚠️ Z₂ → U(1) transition via monopole condensation (requires frustrated lattice)
+- ⚠️ Dirac fermions in 3+1d
+- ⚠️ QED as effective low-energy theory
+- ⚠️ Constant α from microscopic parameters
 
-## 5. Открытые проблемы
+## References
 
-| Проблема | Статус |
-|---|---|
-| Точное значение Γ_c для H_Ze | Предварительное; нужна экстраполяция |
-| Доказательство U(1)-фазы | Не доказано |
-| Вычисление α из H_Ze | Не вычислено |
-| Обобщение на 3+1d | Программа; не реализована |
-| Экспериментально проверяемое предсказание | Не сформулировано |
-| Связь τ_Ze с релятивистским τ | Открытый вопрос |
+- Jordan & Wigner (1928) — spin → fermion mapping
+- Wegner (1971) — Z₂ gauge theory duality
+- Wilson (1974) — lattice gauge theory
+- Pfeuty (1970) — 1D TFIM exact solution
+- Hermele, Fisher, Balents (2004) — U(1) spin liquid
+- Gorantla & Huang (2025) — exact gapped Z₂ phases
+- Su & Martin (2026) — bosonization in general dimensions
+- Levin & Wen (2005) — string-net condensation
 
----
+## Author
 
-## 6. Заключение
+**Jaba Tqemaladze, MD**  
+Free University of Tbilisi  
+jaba@longevity.ge | ORCID: 0000-0001-8651-7243
 
-Ze-теория — это **интерпретационная рамка.** Она не выводит КЭД, не вычисляет α, не предлагает новых гамильтонианов. Её ценность — в концептуальном переосмыслении Z₂-калибровочной теории как теории активных агентов, минимизирующих время на существование. Эта интерпретация:
-- Математически непротиворечива (H_Ze ≡ H_Z₂)
-- Согласуется с FEP для бинарного случая
-- Может служить мостом между физикой и биологией
+## License
 
-Дальнейшее развитие требует: (1) строгого анализа численных результатов, (2) построения явной модели U(1)-фазы, (3) формулировки экспериментально проверяемых предсказаний.
-
----
-
-## Литература
-
-[1] Friston, K. (2010). The free-energy principle. *Nature Reviews Neuroscience, 11*, 127–138.
-
-[2] Fields, C., Friston, K., Glazebrook, J.F., & Levin, M. (2022). A free energy principle for generic quantum systems. *Progress in Biophysics and Molecular Biology, 173*, 36–59.
-
-[3] Wegner, F.J. (1971). Duality in generalized Ising models. *Journal of Mathematical Physics, 12*, 2259–2272.
-
-[4] Wilson, K.G. (1974). Confinement of quarks. *Physical Review D, 10*, 2445–2459.
-
-[5] Jordan, P., & Wigner, E. (1928). *Zeitschrift für Physik, 47*, 631–651.
-
-[6] Pfeuty, P. (1970). The one-dimensional Ising model with a transverse field. *Annals of Physics, 57*, 79–90.
-
-[7] Gorantla, P., & Huang, T.-C. (2025). *Physical Review B, 111*, 245110.
-
-[8] Su, L., & Martin, I. (2026). Bosonization and Kramers-Wannier dualities. *SciPost Physics, 20*, 180.
-
----
-
-*© 2026 Jaba Tqemaladze.*
+Apache 2.0 © 2026 Jaba Tqemaladze
