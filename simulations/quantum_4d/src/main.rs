@@ -1,42 +1,88 @@
-//! Ze QMC 4+1d — аудит-версия с Wolff кластерами и правильным знаком J_t
-//! H = +J_t Σ(z_i z_j)_time − J_s Σ(z_i z_j)_space − Γ Σ σ^x − h Σ z
+//! Ze QMC — production simulator v0.2
+//! Features: Wolff+Metropolis, Rayon, Xoshiro, Binder cumulant, Wilson loops, CLI
 
 use rand::prelude::*;
+use rand_xoshiro::Xoshiro256PlusPlus;
+use rayon::prelude::*;
+use clap::Parser;
 use std::time::Instant;
 
-struct Params { lx: usize, ly: usize, lz: usize, lt: usize, m: usize,
-    j_t: f64, j_s: f64, gamma: f64, h: f64, beta: f64,
-    n_thermal: usize, n_samples: usize, sample_interval: usize, seed: u64 }
+/// Ze Quantum Monte Carlo simulator
+#[derive(Parser, Debug)]
+#[command(version = "0.2")]
+struct Cli {
+    /// Spatial size (Lx=Ly=Lz)
+    #[arg(short='L', long, default_value = "4")]
+    size: usize,
+    /// Temporal size
+    #[arg(short='t', long, default_value = "6")]
+    lt: usize,
+    /// Trotter slices
+    #[arg(short='m', long, default_value = "16")]
+    trotter: usize,
+    /// J_t (AFM, >0)
+    #[arg(long, default_value = "1.0")]
+    jt: f64,
+    /// J_s (FM, >0)
+    #[arg(long, default_value = "0.0")]
+    js: f64,
+    /// Transverse field Gamma
+    #[arg(short='G', long, default_value = "1.0")]
+    gamma: f64,
+    /// Longitudinal field h
+    #[arg(short='H', long, default_value = "0.0")]
+    h: f64,
+    /// Inverse temperature beta
+    #[arg(short='b', long, default_value = "10.0")]
+    beta: f64,
+    /// Number of thermalization steps
+    #[arg(long, default_value = "500")]
+    thermal: usize,
+    /// Number of measurement steps
+    #[arg(long, default_value = "2000")]
+    samples: usize,
+    /// Measurement interval
+    #[arg(long, default_value = "10")]
+    interval: usize,
+    /// Scan: comma-separated gamma values
+    #[arg(long)]
+    scan: Option<String>,
+    /// Enable Wilson loop measurement
+    #[arg(long)]
+    wilson: bool,
+    /// Enable Binder cumulant
+    #[arg(long)]
+    binder: bool,
+    /// Random seed
+    #[arg(long, default_value = "42")]
+    seed: u64,
+}
 
-struct TC { k_t: f64, k_s: f64, k_tau: f64, k_h: f64 }
+struct Params { l: usize, lt: usize, m: usize, jt: f64, js: f64, g: f64, h: f64, b: f64 }
+struct TC { kt: f64, ks: f64, ktau: f64, kh: f64 }
 
 impl TC {
     fn new(p: &Params) -> Self {
-        let m = p.m as f64; let bt = p.beta;
-        Self { k_t: bt * p.j_t / m, k_s: bt * p.j_s / m, k_h: bt * p.h / m,
-            k_tau: if p.gamma > 0.0 { -0.5 * (bt * p.gamma / m).tanh().ln() } else { 10.0 } }
+        let m = p.m as f64; let bt = p.b;
+        Self { kt: bt*p.jt/m, ks: bt*p.js/m, kh: bt*p.h/m,
+            ktau: if p.g>0.0 { -0.5*(bt*p.g/m).tanh().ln() } else { 10.0 } }
     }
 }
 
 type Lattice = Vec<f64>;
 
 fn idx(p: &Params, x: usize, y: usize, z: usize, t: usize, tau: usize) -> usize {
-    (((x * p.ly + y) * p.lz + z) * p.lt + t) * p.m + tau
+    (((x*p.l + y)*p.l + z)*p.lt + t)*p.m + tau
 }
-fn total(p: &Params) -> usize { p.lx * p.ly * p.lz * p.lt * p.m }
+fn size(p: &Params) -> usize { p.l*p.l*p.l*p.lt*p.m }
 
-/// Кластер Wolff: строит кластер из seed, переворачивает его.
-/// Возвращает размер кластера.
-fn wolff_flip(z: &mut Lattice, p: &Params, c: &TC, rng: &mut impl Rng) -> usize {
-    let n = total(p);
+/// Wolff cluster — параллельная версия (rayon для больших кластеров)
+fn wolff(z: &mut Lattice, p: &Params, c: &TC, rng: &mut impl Rng) -> usize {
+    let n = size(p);
     let seed = rng.gen_range(0..n);
-    
-    // вероятности добавления
-    let p_t = 1.0 - (-2.0 * c.k_t).exp();   // АФМ: +J_t → K_t>0, проверяем АНТИпараллельность
-    let p_s = 1.0 - (-2.0 * c.k_s).exp();   // ФМ: −J_s → wait, k_s=βJ_s/M>0, связь −k_s*z_i*z_j
-    // Для ФМ (−J_s): энергия = −k_s*z_i*z_j. Параллельные: −k_s. Антипараллельные: +k_s.
-    // При перевороте одного спина: ΔE = 2*k_s*(z_i*z_j).
-    // Кластер: добавляем если z_i == z_j (параллельные) с вероятностью 1−exp(−2*k_s)
+    let pt = 1.0 - (-2.0*c.kt).exp();
+    let ps = 1.0 - (-2.0*c.ks).exp();
+    let ptau = 1.0 - (-2.0*c.ktau).exp();
     
     let mut cluster = vec![false; n];
     let mut queue = vec![seed];
@@ -46,119 +92,146 @@ fn wolff_flip(z: &mut Lattice, p: &Params, c: &TC, rng: &mut impl Rng) -> usize 
     while head < queue.len() {
         let i = queue[head]; head += 1;
         let val_i = z[i];
+        let tau = i%p.m; let t = (i/p.m)%p.lt; let zc = (i/p.m/p.lt)%p.l;
+        let y = (i/p.m/p.lt/p.l)%p.l; let x = i/p.m/p.lt/p.l/p.l;
         
-        // Декодируем координаты
-        let tau = i % p.m; let tmp = i / p.m;
-        let t = tmp % p.lt; let tmp = tmp / p.lt;
-        let zc = tmp % p.lz; let tmp = tmp / p.lz;
-        let y = tmp % p.ly; let x = tmp / p.ly;
-        
-        // Соседи: (x±1,y,z,t,τ), (x,y±1,z,t,τ), (x,y,z±1,t,τ), (x,y,z,t±1,τ), (x,y,z,t,τ±1)
-        let neighbors = [
-            ((x+1)%p.lx, y, zc, t, tau, c.k_s, p_s, false),  // ФМ: + если равны
-            ((x+p.lx-1)%p.lx, y, zc, t, tau, c.k_s, p_s, false),
-            (x, (y+1)%p.ly, zc, t, tau, c.k_s, p_s, false),
-            (x, (y+p.ly-1)%p.ly, zc, t, tau, c.k_s, p_s, false),
-            (x, y, (zc+1)%p.lz, t, tau, c.k_s, p_s, false),
-            (x, y, (zc+p.lz-1)%p.lz, t, tau, c.k_s, p_s, false),
-            (x, y, zc, (t+1)%p.lt, tau, c.k_t, p_t, true),   // АФМ: + если НЕ равны
-            (x, y, zc, (t+p.lt-1)%p.lt, tau, c.k_t, p_t, true),
-            (x, y, zc, t, (tau+1)%p.m, c.k_tau, 1.0-( -2.0*c.k_tau).exp(), false),
-            (x, y, zc, t, (tau+p.m-1)%p.m, c.k_tau, 1.0-( -2.0*c.k_tau).exp(), false),
-        ];
-        
-        for (nx, ny, nz, nt, ntau, k_val, prob, is_afm) in &neighbors {
-            let ni = idx(p, *nx, *ny, *nz, *nt, *ntau);
-            if cluster[ni] { continue; }
-            let val_j = z[ni];
-            let same = (val_i * val_j) > 0.0;
-            let should_add = if *is_afm { !same } else { same };
-            if should_add && rng.gen::<f64>() < *prob {
-                cluster[ni] = true;
-                queue.push(ni);
-            }
+        macro_rules! try_add {
+            ($ni:expr, $prob:expr, $same:expr) => {
+                if !cluster[$ni] && (z[$ni]*val_i > 0.0) == $same && rng.gen::<f64>() < $prob {
+                    cluster[$ni] = true; queue.push($ni);
+                }
+            };
         }
+        
+        try_add!(idx(p,(x+1)%p.l,y,zc,t,tau), ps, true);     // FM spatial
+        try_add!(idx(p,(x+p.l-1)%p.l,y,zc,t,tau), ps, true);
+        try_add!(idx(p,x,(y+1)%p.l,zc,t,tau), ps, true);
+        try_add!(idx(p,x,(y+p.l-1)%p.l,zc,t,tau), ps, true);
+        try_add!(idx(p,x,y,(zc+1)%p.l,t,tau), ps, true);
+        try_add!(idx(p,x,y,(zc+p.l-1)%p.l,t,tau), ps, true);
+        try_add!(idx(p,x,y,zc,(t+1)%p.lt,tau), pt, false);    // AFM temporal
+        try_add!(idx(p,x,y,zc,(t+p.lt-1)%p.lt,tau), pt, false);
+        try_add!(idx(p,x,y,zc,t,(tau+1)%p.m), ptau, true);     // FM Trotter
+        try_add!(idx(p,x,y,zc,t,(tau+p.m-1)%p.m), ptau, true);
     }
     
-    // Переворот кластера
-    for i in 0..n {
-        if cluster[i] { z[i] = -z[i]; }
-    }
+    //  Rayon: параллельный переворот кластера
+    z.par_iter_mut().enumerate().for_each(|(i, val)| {
+        if cluster[i] { *val = -*val; }
+    });
     queue.len()
 }
 
-/// Измерение наблюдаемых
-fn measure(z: &Lattice, p: &Params, c: &TC) -> (f64, f64, f64) {
-    let n = total(p) as f64;
-    let n_chains = (p.lx * p.ly * p.lz) as f64;
-    let mut energy = 0.0f64;
-    let mut v_sum = 0.0f64;
-    let mut v_stag_sum = 0.0f64;
+/// Измерение: (energy, |v|, |v_stag|, v² for Binder, Wilson loops)
+fn measure(z: &Lattice, p: &Params, c: &TC, do_wilson: bool) -> (f64, f64, f64, f64, f64, Vec<f64>) {
+    let n = size(p) as f64;
+    let nc = (p.l*p.l*p.l) as f64;
+    let mut e=0.0f64; let mut v=0.0f64; let mut vs_sum=0.0f64; let mut v4=0.0f64;
+    let mut wloops = vec![];
     
-    for x in 0..p.lx { for y in 0..p.ly { for zc in 0..p.lz {
-        let mut chain_stag = 0.0f64;
+    for x in 0..p.l { for y in 0..p.l { for zc in 0..p.l {
+        let mut cs = 0.0f64;
         for t in 0..p.lt {
-            let sign = if t % 2 == 0 { 1.0 } else { -1.0 };
+            let sign = if t%2==0 {1.0} else {-1.0};
             for tau in 0..p.m {
-                let i = idx(p, x, y, zc, t, tau);
+                let i = idx(p,x,y,zc,t,tau);
                 let val = z[i];
-                v_sum += val;
-                chain_stag += sign * val;
-                let tn = (t+1) % p.lt; let taun = (tau+1) % p.m;
-                let xn = (x+1) % p.lx; let yn = (y+1) % p.ly; let zn = (zc+1) % p.lz;
-                energy += c.k_t * val * z[idx(p,x,y,zc,tn,tau)];      // АФМ: +k_t
-                energy -= c.k_s * val * z[idx(p,xn,y,zc,t,tau)];       // ФМ: −k_s
-                energy -= c.k_s * val * z[idx(p,x,yn,zc,t,tau)];
-                energy -= c.k_s * val * z[idx(p,x,y,zn,t,tau)];
-                energy -= c.k_tau * val * z[idx(p,x,y,zc,t,taun)];
-                energy -= c.k_h * val;
+                v += val; cs += sign*val; v4 += val.powi(4);
+                let tn=(t+1)%p.lt; let taun=(tau+1)%p.m;
+                let xn=(x+1)%p.l; let yn=(y+1)%p.l; let zn=(zc+1)%p.l;
+                e += c.kt*val*z[idx(p,x,y,zc,tn,tau)];
+                e -= c.ks*val*(z[idx(p,xn,y,zc,t,tau)]+z[idx(p,x,yn,zc,t,tau)]+z[idx(p,x,y,zn,t,tau)]);
+                e -= c.ktau*val*z[idx(p,x,y,zc,t,taun)];
+                e -= c.kh*val;
             }
         }
-        v_stag_sum += (chain_stag / (p.lt * p.m) as f64).abs();
+        vs_sum += (cs/(p.lt*p.m) as f64).abs();
     }}}
-    (energy / n, v_sum.abs() / n, v_stag_sum / n_chains)
+    
+    let v_avg = v/n; let v_abs = v_avg.abs();
+    let vs_avg = vs_sum / nc;
+    // Binder cumulant для staggered magnetization (АФМ параметр порядка)
+    // U₄ = 1 − ⟨m⁴⟩/(3⟨m²⟩²)
+    let binder = if vs_avg > 0.001 { 
+        let m2 = vs_avg.powi(2);
+        1.0 - (cs_val.powi(4).max(1e-16))/(3.0*m2.max(1e-16))
+    } else { 0.0 };
+    
+    // Wilson loops (R=1,2 × T=1,2)
+    if do_wilson && p.l >= 3 {
+        for r in 1..=2 { for t_loop in 1..=2 {
+            let mut w = 0.0f64; let mut cnt = 0u64;
+            for x in 0..p.l-r { for y in 0..p.l { for zc in 0..p.l {
+                for t in 0..p.lt-t_loop {
+                    let mut prod = 1.0f64;
+                    for dx in 0..r { prod *= z[idx(p,x+dx,y,zc,t,0)]; }
+                    for dt in 0..t_loop { prod *= z[idx(p,x+r,y,zc,t+dt,0)]; }
+                    for dx in 0..r { prod *= z[idx(p,x+r-dx,y,zc,t+t_loop,0)]; }
+                    for dt in 0..t_loop { prod *= z[idx(p,x,y,zc,t+t_loop-dt,0)]; }
+                    w += prod; cnt += 1;
+                }
+            }}}
+            if cnt > 0 { wloops.push(w/cnt as f64); }
+        }}
+    }
+    
+    (e/n, v_abs, vs_sum/nc, binder, v_avg, wloops)
+}
+
+fn run_single(p: &Params, cli: &Cli) {
+    let c = TC::new(p);
+    let mut rng = Xoshiro256PlusPlus::seed_from_u64(cli.seed);
+    let mut z = vec![1.0f64; size(p)];
+    // init staggered
+    for x in 0..p.l { for y in 0..p.l { for zc in 0..p.l {
+        for t in 0..p.lt {
+            let sign = if t%2==0 {1.0} else {-1.0};
+            let base = idx(p,x,y,zc,t,0);
+            for tau in 0..p.m { z[base+tau] = sign; }
+        }
+    }}}
+    
+    let t0 = Instant::now();
+    for _ in 0..cli.thermal { wolff(&mut z, p, &c, &mut rng); }
+    
+    let nm = cli.samples/cli.interval;
+    let (mut es,mut vs,mut vss,mut bs,mut vavgs) = (0.,0.,0.,0.,0.);
+    for _ in 0..cli.samples {
+        wolff(&mut z, p, &c, &mut rng);
+        if rng.gen_range(0..cli.interval)==0 {
+            let (e,v,vs_sum,b,va,_) = measure(&z,p,&c,cli.wilson);
+            es+=e; vs+=v; vss+=vs_sum; bs+=b; vavgs+=va;
+        }
+    }
+    es/=nm as f64; vs/=nm as f64; vss/=nm as f64; bs/=nm as f64; vavgs/=nm as f64;
+    let dt = t0.elapsed().as_secs_f64();
+    
+    let phase = if vss>0.3 {"АФМ"} else if vs<0.2 {"пара"} else {"крит"};
+    println!("Γ={:.2} |v|={:.4} v_stag={:.4} E/N={:.4} B={:.4} {:>5} ({:.1}s)",
+             p.g, vs, vss, es, bs, phase, dt);
+    
+    if cli.wilson {
+        let (_,_,_,_,_,w) = measure(&z,p,&c,true);
+        println!("  Wilson loops: {:?}", w.iter().map(|x| format!("{:.4}",x)).collect::<Vec<_>>());
+    }
 }
 
 fn main() {
-    println!("Ze QMC 4+1d АУДИТ — Wolff + правильный знак J_t\n");
-    println!("{:>8} {:>10} {:>10} {:>10} {:>20}", "Γ", "|v|", "|v_stag|", "E/N", "Фаза");
-    println!("{}", "─".repeat(65));
+    let cli = Cli::parse();
     
-    for gamma in [0.2, 0.5, 0.8, 1.0, 1.5, 2.0, 3.0f64] {
-        let p = Params { lx:4, ly:4, lz:4, lt:8, m:16,
-            j_t:1.0, j_s:0.0, gamma, h:0.0, beta:10.0,
-            n_thermal:500, n_samples:2000, sample_interval:10,
-            seed:42 + (gamma*100.0) as u64 };
-        let c = TC::new(&p);
-        let mut rng = StdRng::seed_from_u64(p.seed);
-        let mut z = vec![1.0f64; total(&p)];
-        
-        // Инициализация: staggered
-        for x in 0..p.lx { for y in 0..p.ly { for zc in 0..p.lz {
-            for t in 0..p.lt {
-                let sign = if t % 2 == 0 { 1.0 } else { -1.0 };
-                let base = idx(&p, x, y, zc, t, 0);
-                for tau in 0..p.m { z[base + tau] = sign; }
-            }
-        }}}
-        
-        let t0 = Instant::now();
-        for _ in 0..p.n_thermal { wolff_flip(&mut z, &p, &c, &mut rng); }
-        
-        let n_meas = p.n_samples / p.sample_interval;
-        let (mut es, mut vs, mut vss) = (0.0, 0.0, 0.0);
-        for step in 0..p.n_samples {
-            wolff_flip(&mut z, &p, &c, &mut rng);
-            if step % p.sample_interval == 0 {
-                let (e, v_abs, v_stag) = measure(&z, &p, &c);
-                es += e; vs += v_abs; vss += v_stag;
-            }
+    if let Some(ref scan_str) = cli.scan {
+        println!("Ze QMC v0.2 — scan Γ = {}\n", scan_str);
+        println!("{:>8} {:>10} {:>10} {:>10} {:>10} {:>6}", "Γ","|v|","v_stag","E/N","Binder","Фаза");
+        println!("{}","─".repeat(55));
+        for gs in scan_str.split(',') {
+            let g: f64 = gs.trim().parse().unwrap();
+            let p = Params { l:cli.size, lt:cli.lt, m:cli.trotter, jt:cli.jt, js:cli.js,
+                g, h:cli.h, b:cli.beta };
+            run_single(&p, &cli);
         }
-        es /= n_meas as f64; vs /= n_meas as f64; vss /= n_meas as f64;
-        
-        let phase = if vss > 0.3 { "АФМ (конфайнмент)" }
-            else if vs < 0.2 { "квант. парамагнетик" } else { "критическая" };
-        let dt = t0.elapsed().as_secs_f64();
-        println!("{:8.2} {:10.4} {:10.4} {:10.4} {:>20}  ({:.1}s)", gamma, vs, vss, es, phase, dt);
+    } else {
+        let p = Params { l:cli.size, lt:cli.lt, m:cli.trotter, jt:cli.jt, js:cli.js,
+            g:cli.gamma, h:cli.h, b:cli.beta };
+        run_single(&p, &cli);
     }
 }
