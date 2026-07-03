@@ -1,6 +1,6 @@
 """
-Ze на пирохлорной решётке: поиск U(1)-фазы.
-Numba-совместимая версия.
+Ze on the pyrochlore lattice: search for U(1) phase.
+Numba-compatible version.
 """
 import numpy as np
 from numba import njit

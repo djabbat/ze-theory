@@ -1,7 +1,7 @@
 """
-Квантовое Монте-Карло на пирохлорной решётке.
-Suzuki-Trotter path integral + Wolff кластеры.
-H = +J Σ z_i z_j (AFM, фрустрированный) − Γ Σ σ^x
+Quantum Monte Carlo on the pyrochlore lattice.
+Suzuki-Trotter path integral + Wolff clusters.
+H = +J Σ z_i z_j (AFM, frustrated) − Γ Σ σ^x
 """
 import numpy as np
 from numba import njit
