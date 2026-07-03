@@ -7,39 +7,7 @@ import numpy as np
 from numba import njit
 import sys, math, json
 from datetime import datetime
-
-# ============================================================
-# Геометрия пирохлорной решётки (плоский массив)
-# ============================================================
-@njit
-def build_pyrochlore(L):
-    """N=4L³ спинов, до 6 соседей каждый."""
-    N = 4 * L**3
-    max_n = 6
-    neigh = -np.ones((N, max_n), dtype=np.int32)
-    deg = np.zeros(N, dtype=np.int32)
-    
-    def idx(x, y, z, s):
-        return ((x % L) * L * L + (y % L) * L + (z % L)) * 4 + s
-    
-    edges = [(0,1),(0,2),(0,3),(1,2),(1,3),(2,3)]
-    
-    for x in range(L):
-        for y in range(L):
-            for z in range(L):
-                for s1, s2 in edges:
-                    i = idx(x,y,z,s1); j = idx(x,y,z,s2)
-                    found = False
-                    for k in range(deg[i]):
-                        if neigh[i,k] == j: found = True; break
-                    if not found and deg[i] < max_n:
-                        neigh[i, deg[i]] = j; deg[i] += 1
-                    found = False
-                    for k in range(deg[j]):
-                        if neigh[j,k] == i: found = True; break
-                    if not found and deg[j] < max_n:
-                        neigh[j, deg[j]] = i; deg[j] += 1
-    return neigh, deg
+from pyro_lattice import build_pyrochlore
 
 
 # ============================================================
@@ -171,7 +139,7 @@ def compute_obs_qpyro(z, neigh, deg, M, K_spin, K_tau, L):
 def run_quantum_pyro(L=2, M_trotter=16, J=1.0, Gamma=0.5, n_thermal=1000, n_samples=2000):
     """Квантовое MC на пирохлорной решётке."""
     N = 4 * L**3
-    neigh, deg = build_pyrochlore(L)
+    neigh, deg, _ = build_pyrochlore(L)
     K_spin, K_tau = setup_trotter(J, Gamma, M_trotter)
     
     print(f"QMC Pyrochlore: L={L}, N={N}, M={M_trotter}, J={J}, Γ={Gamma}")
