@@ -99,6 +99,13 @@ python ze_mc.py --quick
 - Su & Martin (2026) — bosonization in general dimensions
 - Levin & Wen (2005) — string-net condensation
 
+## Paper
+
+**«Ze-теория: от Z₂-калибровочной теории к вычислению постоянной тонкой структуры»** (2026)
+
+Центральный результат: постоянная тонкой структуры α ≈ 1/137 вычислена из принципов Ze с точностью 2.2%.
+Файл: `Ze_теория_от_Z2_к_вычислению_альфа.md`.
+
 ## Author
 
 **Jaba Tqemaladze, MD**  

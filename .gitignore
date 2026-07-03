@@ -3,3 +3,6 @@ __pycache__/
 *.pyo
 results_*.json
 .DS_Store
+target/
+*.json
+!CITATION.cff

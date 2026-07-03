@@ -1,1 +1,1 @@
-/home/oem/Desktop/LC/Ze/simulations/quantum_4d/target/release/ze-qmc-4d: /home/oem/Desktop/LC/Ze/simulations/quantum_4d/src/main.rs
+/home/oem/Desktop/ze-public/simulations/quantum_4d/target/release/ze-qmc-4d: /home/oem/Desktop/ze-public/simulations/quantum_4d/src/lib.rs /home/oem/Desktop/ze-public/simulations/quantum_4d/src/main.rs

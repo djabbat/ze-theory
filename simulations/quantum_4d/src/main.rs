@@ -1,15 +1,15 @@
-//! Ze QMC v2.0 — production simulator. Ideal state.
+//! Ze QMC v2.1 — production simulator.
 //!
 //! H = +J_t Σ(z_i z_j)_time − J_s Σ(z_i z_j)_space − Γ Σ σ^x − h Σ z
 //!
 //! Features: Wolff clusters, Xoshiro RNG, Rayon parallel, Jackknife errors,
-//!           τ_int autocorrelation, auto-thermalization, PT swaps,
-//!           Binder cumulant, FSS, Wilson loops, JSON output,
-//!           Checkpoint/restart, Trotter extrapolation, unit tests.
+//!           τ_int for E/v_stag/Binder, auto-thermalization (default on), PT swaps,
+//!           Binder cumulant, FSS, Wilson loops, JSON output, v* comparison,
+//!           Checkpoint/restart, Trotter extrapolation, Pfeuty verification, unit tests.
 //!
 //! Build: cargo build --release
 //! Test:  cargo test
-//! Usage: ./ze-qmc-4d --scan "0.5,0.8,1.0,1.2,1.5" --fss --auto-thermal
+//! Usage: ./ze-qmc-4d --scan "0.5,0.8,1.0,1.2,1.5" --fss
 
 use rand::prelude::*;
 use rand_xoshiro::Xoshiro256PlusPlus;
@@ -21,27 +21,27 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
-#[command(version = "2.0")]
+#[command(version = "2.1")]
 struct Cli {
     #[arg(short='L', long, default_value = "4")] size: usize,
     #[arg(short='t', long, default_value = "6")] lt: usize,
-    #[arg(short='m', long, default_value = "16")] trotter: usize,
+    #[arg(short='m', long, default_value = "32")] trotter: usize,
     #[arg(long, default_value = "1.0")] jt: f64,
     #[arg(long, default_value = "0.0")] js: f64,
     #[arg(long, default_value = "0.0")] jnnn: f64,
     #[arg(short='G', long, default_value = "1.0")] gamma: f64,
     #[arg(short='H', long, default_value = "0.0")] h: f64,
     #[arg(short='b', long, default_value = "10.0")] beta: f64,
-    #[arg(long, default_value = "500")] thermal: usize,
-    #[arg(long, default_value = "2000")] samples: usize,
-    #[arg(long, default_value = "10")] interval: usize,
+    #[arg(long, default_value = "1000")] thermal: usize,
+    #[arg(long, default_value = "5000")] samples: usize,
+    #[arg(long, default_value = "5")] interval: usize,
     #[arg(long)] scan: Option<String>,
     #[arg(long)] fss: bool,
     #[arg(long, default_value = "42")] seed: u64,
     #[arg(long, default_value = "1")] pt_replicas: usize,
     #[arg(long)] json: bool,
     #[arg(long, default_value = "20")] n_bins: usize,
-    #[arg(long)] auto_thermal: bool,
+    #[arg(long, default_value = "true")] auto_thermal: bool,
     /// Trotter extrapolation: run with M and M/2, estimate M→∞
     #[arg(long)] trotter_extrap: bool,
     /// Checkpoint file for save/restore
@@ -286,9 +286,10 @@ fn load_checkpoint(path: &PathBuf) -> Option<(Lattice, usize)> {
 #[derive(Serialize, Clone, Debug)]
 struct Meas { e: f64, e_err: f64, v_abs: f64, v_abs_err: f64,
     v_stag: f64, v_stag_err: f64, binder: f64, binder_err: f64,
-    tau_int_e: f64, gamma: f64, l: usize, beta: f64, m_trotter: usize,
+    tau_int_e: f64, tau_int_vs: f64, tau_int_b: f64,
+    gamma: f64, l: usize, beta: f64, m_trotter: usize, delta_tau: f64,
     n_thermal: usize, n_samples: usize, n_spins: usize,
-    wilson_1x1: f64, wilson_2x2: f64,
+    wilson_1x1: f64, wilson_2x2: f64, v_star: f64, pfeuty_gc: f64,
 }
 
 fn run(cli: &Cli, gamma: f64, l: usize) -> Meas {
@@ -352,18 +353,24 @@ fn run(cli: &Cli, gamma: f64, l: usize) -> Meas {
     };
     
     let tau_e = tau_int(&e_data);
+    let tau_vs = tau_int(&vs_data);
+    let tau_b = tau_int(&vs4_data);
     let (e_mean, e_err) = jackknife(&e_data, cli.n_bins);
     let (va, va_err) = jackknife(&v_data, cli.n_bins);
     let (vs, vs_err) = jackknife(&vs_data, cli.n_bins);
     let (b, b_err) = binder_jk(&vs_data, &vs2_data, &vs4_data, cli.n_bins);
     let w1 = raw.iter().map(|r| r.w_1x1).filter(|x| x.is_finite()).sum::<f64>() / raw.iter().filter(|r| r.w_1x1.is_finite()).count().max(1) as f64;
     let w2 = raw.iter().map(|r| r.w_2x2).filter(|x| x.is_finite()).sum::<f64>() / raw.iter().filter(|r| r.w_2x2.is_finite()).count().max(1) as f64;
+    let v_star = 1.0 - (2.0f64).ln();  // v* = 1 − ln 2
+    let pfeuty_gc = if p.js == 0.0 && p.jnnn == 0.0 { p.jt } else { f64::NAN };  // Pfeuty (1970): Γ_c = J_t для 1D TFIM
     
     Meas { e:e_mean, e_err, v_abs:va, v_abs_err:va_err,
         v_stag:vs, v_stag_err:vs_err, binder:b, binder_err:b_err,
-        tau_int_e:tau_e, gamma, l, beta:p.b, m_trotter:p.m,
+        tau_int_e:tau_e, tau_int_vs:tau_vs, tau_int_b:tau_b,
+        gamma, l, beta:p.b, m_trotter:p.m, delta_tau: p.b/p.m as f64,
         n_thermal, n_samples:cli.samples, n_spins:nspin(&p),
-        wilson_1x1: w1, wilson_2x2: w2 }
+        wilson_1x1: w1, wilson_2x2: w2, v_star, pfeuty_gc,
+    }
 }
 
 // ============================================================
@@ -377,13 +384,13 @@ fn main() {
     let p0 = Params{l:ls[0],lt:cli.lt,m:cli.trotter,jt:cli.jt,js:cli.js,jnnn:cli.jnnn,g:cli.gamma,h:cli.h,b:cli.beta};
     
     if !cli.json {
-        println!("Ze QMC v2.0 | {} spins (i8) | PT={} | Wolff | τ_int{}",
-            nspin(&p0), cli.pt_replicas,
-            if cli.auto_thermal {" | auto-thermal"} else {""});
+        println!("Ze QMC v2.1 | {} spins (i8) | PT={} | Wolff | Δτ={:.3} | auto-thermal",
+            nspin(&p0), cli.pt_replicas, p0.b/p0.m as f64);
         if cli.fss { println!("FSS: L = {:?}", ls); }
-        println!("{:>4} {:>6} {:>10} {:>10} {:>10} {:>10} {:>7} {:>5}  W(1)/W(2)",
-                 "L","Γ","|v|","v_stag","E/N","Binder","τ_int","Фаза");
-        println!("{}","─".repeat(82));
+        if cli.js == 0.0 && cli.jnnn == 0.0 { println!("Pfeuty (1970): Γ_c = J_t = {} (точное решение 1D TFIM)", cli.jt); }
+        println!("{:>4} {:>6} {:>10} {:>10} {:>10} {:>10} {:>6} {:>6} {:>5}  W(1)/W(2)  Δv*",
+                 "L","Γ","|v|","v_stag","E/N","Binder","τ_E","τ_vs","Фаза");
+        println!("{}","─".repeat(90));
     }
     
     let mut all = vec![];
@@ -404,18 +411,24 @@ fn main() {
                     v_abs: 2.0*m1.v_abs-m2.v_abs, v_abs_err: m1.v_abs_err,
                     v_stag: 2.0*m1.v_stag-m2.v_stag, v_stag_err: m1.v_stag_err,
                     binder: 2.0*m1.binder-m2.binder, binder_err: m1.binder_err,
-                    tau_int_e: m1.tau_int_e, gamma: g, l, beta: m1.beta, m_trotter: 0,
+                    tau_int_e: m1.tau_int_e, tau_int_vs: m1.tau_int_vs, tau_int_b: m1.tau_int_b,
+                    gamma: g, l, beta: m1.beta, m_trotter: 0, delta_tau: 0.0,
                     n_thermal: m1.n_thermal, n_samples: m1.n_samples, n_spins: m1.n_spins,
-                    wilson_1x1: 2.0*m1.wilson_1x1-m2.wilson_1x1, wilson_2x2: 2.0*m1.wilson_2x2-m2.wilson_2x2 }
+                    wilson_1x1: 2.0*m1.wilson_1x1-m2.wilson_1x1, wilson_2x2: 2.0*m1.wilson_2x2-m2.wilson_2x2,
+                    v_star: m1.v_star, pfeuty_gc: m1.pfeuty_gc }
             } else { run(&cli, g, l) };
             
             let phase = if m.v_stag>0.3 {"АФМ"} else if m.v_abs<0.2 {"пара"} else {"крит"};
             let w_diag = if m.wilson_1x1.is_finite() && m.wilson_2x2.is_finite() {
                 if (m.wilson_2x2-m.wilson_1x1.powi(2)).abs() < (m.wilson_2x2-m.wilson_1x1.powi(4)).abs() {"deconf"} else {"conf"}
             } else {"?"};
-            if cli.json { all.push(m.clone()); }
-            else { println!("{:4} {:6.2} {:10.4} {:10.4} {:10.4} {:10.4} {:7.2} {:>5}  {:.3}/{:.3} {}",
-                l,g,m.v_abs,m.v_stag,m.e,m.binder,m.tau_int_e,phase,m.wilson_1x1,m.wilson_2x2,w_diag); }
+            if cli.json {
+                all.push(m.clone());
+            } else {
+                println!("{:4} {:6.2} {:10.4} {:10.4} {:10.4} {:10.4} {:6.1} {:6.1} {:>5}  {:.3}/{:.3} {}  {:.3}",
+                    l,g,m.v_abs,m.v_stag,m.e,m.binder,m.tau_int_e,m.tau_int_vs,phase,m.wilson_1x1,m.wilson_2x2,w_diag,
+                    (m.v_abs - m.v_star).abs());
+            }
             all.push(m);
         }
     }

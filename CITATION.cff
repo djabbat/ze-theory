@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: "Ze Theory: An Interpretive Framework for Z₂ Lattice Gauge Theory"
+message: "If you use Ze in your research, please cite the paper."
+type: article
+authors:
+  - given-names: Jaba
+    family-names: Tqemaladze
+    orcid: "https://orcid.org/0000-0001-8651-7243"
+    email: jaba@longevity.ge
+repository-code: "https://github.com/djabbat/ze-theory"
+year: 2026
+month: 7
+abstract: "Ze-theory offers an interpretive framework for Z₂ lattice gauge theory in the language of active agents minimizing existence time through prediction. The Hamiltonian coincides with the standard Z₂ gauge theory (Wegner 1971); novelty is in conceptual reframing. Numerical results confirm a critical point v*=1−ln2, a quantum phase transition at Γ≈1.0 (matching Pfeuty 1970), and Wilson loop confinement on the cubic lattice."
+keywords:
+  - Z₂ lattice gauge theory
+  - Monte Carlo
+  - quantum phase transition
+  - free energy principle
+  - agent-based interpretation
+license: Apache-2.0
