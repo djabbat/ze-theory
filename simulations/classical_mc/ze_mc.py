@@ -315,7 +315,7 @@ if __name__ == "__main__":
     
     # Сканирование по J_s (пространственная связь)
     elif "--scan-js" in sys.argv:
-        Js_values = np.linspace(0.0, 1.0, 11)
+        Js_values = np.linspace(0.1, 1.0, 10)
         params = {"Lx": 6, "Ly": 6, "Lt": 12, "n_thermal": 3000, "n_samples": 10000}
         all_results = []
         for Js in Js_values:
