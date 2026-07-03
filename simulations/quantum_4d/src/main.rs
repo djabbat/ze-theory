@@ -23,6 +23,8 @@ struct Cli {
     #[arg(short='m', long, default_value = "16")] trotter: usize,
     #[arg(long, default_value = "1.0")] jt: f64,
     #[arg(long, default_value = "0.0")] js: f64,
+    /// NNN AFM coupling (создаёт фрустрацию)
+    #[arg(long, default_value = "0.0")] jnnn: f64,
     #[arg(short='G', long, default_value = "1.0")] gamma: f64,
     #[arg(short='H', long, default_value = "0.0")] h: f64,
     #[arg(short='b', long, default_value = "10.0")] beta: f64,
@@ -39,16 +41,17 @@ struct Cli {
 }
 
 #[derive(Copy, Clone)]
-struct Params { l: usize, lt: usize, m: usize, jt: f64, js: f64, g: f64, h: f64, b: f64 }
+struct Params { l: usize, lt: usize, m: usize, jt: f64, js: f64, jnnn: f64, g: f64, h: f64, b: f64 }
 
 #[derive(Copy, Clone)]
-struct TC { kt: f64, ks: f64, ktau: f64, kh: f64 }
+struct TC { kt: f64, ks: f64, ktau: f64, kh: f64, kjnnn: f64 }
 
 impl TC {
     fn new(p: &Params) -> Self {
         let m = p.m as f64; let bt = p.b;
         Self { kt: bt*p.jt/m, ks: bt*p.js/m, kh: bt*p.h/m,
-            ktau: if p.g>0.0 { -0.5*(bt*p.g/m).tanh().ln() } else { 10.0 } }
+            ktau: if p.g>0.0 { -0.5*(bt*p.g/m).tanh().ln() } else { 10.0 },
+            kjnnn: bt*p.jnnn/m }
     }
 }
 
@@ -82,6 +85,7 @@ fn init_staggered(p: &Params) -> Lattice {
 fn wolff(z: &mut Lattice, p: &Params, c: &TC, rng: &mut impl Rng) -> usize {
     let n = nspin(p);
     let seed = rng.gen_range(0..n);
+    let pnnn = 1.0-(-2.0*c.kjnnn).exp();
     let (pt, ps, ptau) = (1.0-(-2.0*c.kt).exp(), 1.0-(-2.0*c.ks).exp(), 1.0-(-2.0*c.ktau).exp());
     
     let mut cluster = vec![false; n];
@@ -102,6 +106,19 @@ fn wolff(z: &mut Lattice, p: &Params, c: &TC, rng: &mut impl Rng) -> usize {
         tr!(idx(p,x,y,(zc+1)%p.l,t,tau),ps,true);  tr!(idx(p,x,y,(zc+p.l-1)%p.l,t,tau),ps,true);
         tr!(idx(p,x,y,zc,(t+1)%p.lt,tau),pt,false); tr!(idx(p,x,y,zc,(t+p.lt-1)%p.lt,tau),pt,false);
         tr!(idx(p,x,y,zc,t,(tau+1)%p.m),ptau,true); tr!(idx(p,x,y,zc,t,(tau+p.m-1)%p.m),ptau,true);
+        tr!(idx(p,(x+1)%p.l,(y+1)%p.l,zc,t,tau), pnnn, false); 
+        tr!(idx(p,(x+p.l-1)%p.l,(y+p.l-1)%p.l,zc,t,tau), pnnn, false);
+        tr!(idx(p,(x+1)%p.l,(y+p.l-1)%p.l,zc,t,tau), pnnn, false);
+        tr!(idx(p,(x+p.l-1)%p.l,(y+1)%p.l,zc,t,tau), pnnn, false);
+        tr!(idx(p,(x+1)%p.l,y,(zc+1)%p.l,t,tau), pnnn, false);
+        tr!(idx(p,(x+p.l-1)%p.l,y,(zc+p.l-1)%p.l,t,tau), pnnn, false);
+        tr!(idx(p,(x+1)%p.l,y,(zc+p.l-1)%p.l,t,tau), pnnn, false);
+        tr!(idx(p,(x+p.l-1)%p.l,y,(zc+1)%p.l,t,tau), pnnn, false);
+        tr!(idx(p,x,(y+1)%p.l,(zc+1)%p.l,t,tau), pnnn, false);
+        tr!(idx(p,x,(y+p.l-1)%p.l,(zc+p.l-1)%p.l,t,tau), pnnn, false);
+        tr!(idx(p,x,(y+1)%p.l,(zc+p.l-1)%p.l,t,tau), pnnn, false);
+        tr!(idx(p,x,(y+p.l-1)%p.l,(zc+1)%p.l,t,tau), pnnn, false);
+
     }
     // Rayon: параллельный flip
     z.par_iter_mut().enumerate().for_each(|(i,v)| { if cluster[i] { *v = -*v; } });
@@ -246,7 +263,7 @@ struct Meas {
 }
 
 fn run(cli: &Cli, gamma: f64, l: usize) -> Meas {
-    let p = Params { l, lt:cli.lt, m:cli.trotter, jt:cli.jt, js:cli.js, g:gamma, h:cli.h, b:cli.beta };
+    let p = Params { l, lt:cli.lt, m:cli.trotter, jt:cli.jt, js:cli.js, jnnn:cli.jnnn, g:gamma, h:cli.h, b:cli.beta };
     let c = TC::new(&p);
     let n_rep = cli.pt_replicas.max(1);
     let betas: Vec<f64> = (0..n_rep).map(|r| cli.beta/(1<<r) as f64).collect();
@@ -322,7 +339,7 @@ fn main() {
     
     if !cli.json {
         let header = format!("Ze QMC v1.2 | {} spins (i8) | PT={} | Wolff | τ_int{}",
-            nspin(&Params{l:ls[0],lt:cli.lt,m:cli.trotter,jt:cli.jt,js:cli.js,g:cli.gamma,h:cli.h,b:cli.beta}),
+            nspin(&Params{l:ls[0],lt:cli.lt,m:cli.trotter,jt:cli.jt,js:cli.js, jnnn:cli.jnnn,g:cli.gamma,h:cli.h,b:cli.beta}),
             cli.pt_replicas, if cli.auto_thermal {" | auto-thermal"} else {""});
         println!("{}", header);
         if cli.fss { println!("Binder crossing: L = {:?}", ls); }
