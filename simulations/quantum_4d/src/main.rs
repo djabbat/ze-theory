@@ -181,6 +181,13 @@ fn measure_one(z: &Lattice, p: &Params, c: &TC) -> RawMeas {
                 e -= c.ks*val*z[idx(p,x,y,zn,t,tau)] as f64;
                 e -= c.ktau*val*z[idx(p,x,y,zc,t,taun)] as f64;
                 e -= c.kh*val;
+                // NNN: 12 диагональных соседей (АФМ)
+                e += c.kjnnn*val*z[idx(p,(x+1)%p.l,(y+1)%p.l,zc,t,tau)] as f64;
+                e += c.kjnnn*val*z[idx(p,(x+1)%p.l,(y+p.l-1)%p.l,zc,t,tau)] as f64;
+                e += c.kjnnn*val*z[idx(p,(x+1)%p.l,y,(zc+1)%p.l,t,tau)] as f64;
+                e += c.kjnnn*val*z[idx(p,(x+1)%p.l,y,(zc+p.l-1)%p.l,t,tau)] as f64;
+                e += c.kjnnn*val*z[idx(p,x,(y+1)%p.l,(zc+1)%p.l,t,tau)] as f64;
+                e += c.kjnnn*val*z[idx(p,x,(y+1)%p.l,(zc+p.l-1)%p.l,t,tau)] as f64;
             }
         }
         let stag = cs/(p.lt*p.m) as f64;
@@ -387,4 +394,61 @@ fn main() {
     }
     
     if cli.json { println!("{}", serde_json::to_string_pretty(&all).unwrap()); }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_energy_ferro_ground_state() {
+        // Все спины +1: E = −3*ks*N − ktau*N (ФМ порядок)
+        let p = Params { l:2, lt:2, m:2, jt:1.0, js:1.0, jnnn:0.0, g:1.0, h:0.0, b:1.0 };
+        let c = TC::new(&p);
+        let z = vec![1i8; nspin(&p)];
+        let e = energy_config(&z, &p, &c);
+        // E/N = +kt (AFM, parallel=+kt) − 3*ks (FM, parallel=−ks) − ktau (FM)
+        let e_expected = (c.kt - 3.0*c.ks - c.ktau) * nspin(&p) as f64;
+        assert!((e - e_expected).abs() < 1e-6, "E={} expected={}", e, e_expected);
+    }
+
+    #[test]
+    fn test_energy_afm_ground_state() {
+        // Staggered: +1,−1 along t. AFM bonds = −kt, FM bonds = −ks.
+        let p = Params { l:2, lt:2, m:2, jt:1.0, js:1.0, jnnn:0.0, g:1.0, h:0.0, b:1.0 };
+        let c = TC::new(&p);
+        let mut z = vec![1i8; nspin(&p)];
+        for x in 0..p.l { for y in 0..p.l { for zc in 0..p.l {
+            for t in 0..p.lt {
+                let sign: i8 = if t%2==0 {1} else {-1};
+                let base = idx(&p,x,y,zc,t,0);
+                for tau in 0..p.m { z[base+tau] = sign; }
+            }
+        }}}
+        let e = energy_config(&z, &p, &c);
+        // AFM: parallel neighbours along t in staggered config → z_i*z_j = (−1)*(−1)=1 for t→t+1? 
+        // t=0: sign=+1, t=1: sign=−1. z[0]*z[1] = (+1)*(−1) = −1. E_bond = +kt*(−1) = −kt. Correct!
+        let e_expected = (-c.kt - 3.0*c.ks - c.ktau) * nspin(&p) as f64;
+        assert!((e - e_expected).abs() < 1e-6, "E={} expected={}", e, e_expected);
+    }
+
+    #[test]
+    fn test_trotter_coupling_known_value() {
+        let p = Params { l:2, lt:2, m:8, jt:1.0, js:0.0, jnnn:0.0, g:1.0, h:0.0, b:10.0 };
+        let c = TC::new(&p);
+        let expected = -0.5 * (10.0*1.0/8.0f64).tanh().ln();
+        assert!((c.ktau - expected).abs() < 1e-8);
+    }
+
+    #[test]
+    fn test_wolff_preserves_afm_order() {
+        let p = Params { l:2, lt:4, m:2, jt:1.0, js:0.0, jnnn:0.0, g:0.1, h:0.0, b:10.0 };
+        let c = TC::new(&p);
+        let mut z = init_staggered(&p);
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
+        for _ in 0..100 { wolff(&mut z, &p, &c, &mut rng); }
+        // При Γ=0.1 << J_t, staggered порядок должен сохраниться
+        let m = measure_one(&z, &p, &c);
+        assert!(m.v_stag > 0.5, "v_stag={} should be >0.5 in AFM phase", m.v_stag);
+    }
 }
