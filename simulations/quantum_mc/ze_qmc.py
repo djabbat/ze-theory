@@ -214,18 +214,6 @@ def compute_observables(z, L, M, K_t, K_tau):
     # Корреляционная функция вдоль реального времени (АФМ)
     max_dist = L // 2
     corr_t = np.zeros(max_dist + 1)
-    for t in range(L):
-        for tau in range(M):
-            for d in range(max_dist + 1):
-                t2 = (t + d) % L
-                phase = (-1) ** d  # антиферромагнитная фаза
-                corr_t[d] += phase * z[t, tau] * z[t2, tau]
-    corr_t /= (L * M * (max_dist + 1) / (max_dist + 1))  # нормировка
-    # правильная нормировка
-    norm = L * M
-    corr_t /= norm
-    # пересчёт — каждое расстояние считается L*M раз
-    corr_t_corrected = np.zeros(max_dist + 1)
     for d in range(max_dist + 1):
         total = 0.0
         count = 0
@@ -235,14 +223,12 @@ def compute_observables(z, L, M, K_t, K_tau):
                 phase = (-1) ** d
                 total += phase * z[t, tau] * z[t2, tau]
                 count += 1
-        corr_t_corrected[d] = total / count
-    corr_t = corr_t_corrected
-    
+        corr_t[d] = total / count
+
     # Магнитная восприимчивость (флуктуации намагниченности)
-    # χ = β (⟨v²⟩ - ⟨v⟩²) * N
     # но в троттеровской формулировке β эффективно = M
     # χ_scaled = M * (⟨v_stag²⟩ - ⟨v_stag⟩²) * L
-    
+
     return E, vz, v_stag, corr_t
 
 

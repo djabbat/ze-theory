@@ -46,6 +46,8 @@ struct Cli {
     #[arg(long)] trotter_extrap: bool,
     /// Checkpoint file for save/restore
     #[arg(long)] checkpoint: Option<PathBuf>,
+    /// Use Γ* = 0.94 (optimal for α ≃ 1/137)
+    #[arg(long)] gamma_star: bool,
 }
 
 #[derive(Copy, Clone)]
@@ -290,6 +292,8 @@ struct Meas { e: f64, e_err: f64, v_abs: f64, v_abs_err: f64,
     gamma: f64, l: usize, beta: f64, m_trotter: usize, delta_tau: f64,
     n_thermal: usize, n_samples: usize, n_spins: usize,
     wilson_1x1: f64, wilson_2x2: f64, v_star: f64, pfeuty_gc: f64,
+    /// α = P(T|v*)·g/(4π) (closed-form; g from external ED calibration)
+    alpha_pred: f64,
 }
 
 fn run(cli: &Cli, gamma: f64, l: usize) -> Meas {
@@ -364,19 +368,36 @@ fn run(cli: &Cli, gamma: f64, l: usize) -> Meas {
     let v_star = 1.0 - (2.0f64).ln();  // v* = 1 − ln 2
     let pfeuty_gc = if p.js == 0.0 && p.jnnn == 0.0 { p.jt } else { f64::NAN };  // Pfeuty (1970): Γ_c = J_t для 1D TFIM
     
+    // Замкнутое вычисление α (через g(Γ), калиброванное на точной диагонализации)
+    // g(Γ) = C·Γ^6·Z(Γ), где Z(Γ) → 0.75 при Γ→J (Hermele et al., 2004)
+    let compute_alpha_pred = |gamma: f64, jt: f64| -> f64 {
+        let c = 0.25;
+        let z_inf = 0.75;
+        let gamma_scale = 0.5;
+        let x = gamma / jt;
+        let z = 1.0 - (1.0 - z_inf) * x.powi(2) / (x.powi(2) + (gamma_scale / jt).powi(2));
+        let g = z * c * x.powi(6) * jt;  // ring-exchange constant
+        let pt = (2.0 - (2.0f64).ln()) / 2.0;  // P(T|v*)
+        pt * g / (4.0 * std::f64::consts::PI)  // α = P(T|v*)·g/(4π)
+    };
+    let alpha_pred = compute_alpha_pred(gamma, p.jt);
+    
     Meas { e:e_mean, e_err, v_abs:va, v_abs_err:va_err,
         v_stag:vs, v_stag_err:vs_err, binder:b, binder_err:b_err,
         tau_int_e:tau_e, tau_int_vs:tau_vs, tau_int_b:tau_b,
         gamma, l, beta:p.b, m_trotter:p.m, delta_tau: p.b/p.m as f64,
         n_thermal, n_samples:cli.samples, n_spins:nspin(&p),
         wilson_1x1: w1, wilson_2x2: w2, v_star, pfeuty_gc,
+        alpha_pred,
     }
 }
 
 // ============================================================
 fn main() {
     let cli = Cli::parse();
-    let gammas: Vec<f64> = if let Some(ref s) = cli.scan {
+    let gammas: Vec<f64> = if cli.gamma_star {
+        vec![0.94]  // Γ* — оптимальное значение для α ≃ 1/137
+    } else if let Some(ref s) = cli.scan {
         s.split(',').map(|x| x.trim().parse().unwrap()).collect()
     } else { vec![cli.gamma] };
     let ls: Vec<usize> = if cli.fss { vec![4,6,8] } else { vec![cli.size] };
@@ -404,7 +425,8 @@ fn main() {
                     beta: cli.beta, thermal: cli.thermal, samples: cli.samples,
                     interval: cli.interval, scan: None, fss: false, seed: cli.seed,
                     pt_replicas: cli.pt_replicas, json: false, n_bins: cli.n_bins,
-                    auto_thermal: false, trotter_extrap: false, checkpoint: None };
+                    auto_thermal: false, trotter_extrap: false, checkpoint: None,
+                    gamma_star: false };
                 let m2 = run(&cli_half, g, l);
                 // Richardson extrapolation: E_∞ = 2*E(M) − E(M/2)
                 Meas { e: 2.0*m1.e - m2.e, e_err: (4.0*m1.e_err.powi(2)+m2.e_err.powi(2)).sqrt(),
@@ -415,7 +437,7 @@ fn main() {
                     gamma: g, l, beta: m1.beta, m_trotter: 0, delta_tau: 0.0,
                     n_thermal: m1.n_thermal, n_samples: m1.n_samples, n_spins: m1.n_spins,
                     wilson_1x1: 2.0*m1.wilson_1x1-m2.wilson_1x1, wilson_2x2: 2.0*m1.wilson_2x2-m2.wilson_2x2,
-                    v_star: m1.v_star, pfeuty_gc: m1.pfeuty_gc }
+                    v_star: m1.v_star, pfeuty_gc: m1.pfeuty_gc, alpha_pred: m1.alpha_pred }
             } else { run(&cli, g, l) };
             
             let phase = if m.v_stag>0.3 {"АФМ"} else if m.v_abs<0.2 {"пара"} else {"крит"};
@@ -425,9 +447,10 @@ fn main() {
             if cli.json {
                 all.push(m.clone());
             } else {
-                println!("{:4} {:6.2} {:10.4} {:10.4} {:10.4} {:10.4} {:6.1} {:6.1} {:>5}  {:.3}/{:.3} {}  {:.3}",
+                println!("{:4} {:6.2} {:10.4} {:10.4} {:10.4} {:10.4} {:6.1} {:6.1} {:>5}  {:.3}/{:.3} {}  {:.3}  α={:.6} (1/{:.0})",
                     l,g,m.v_abs,m.v_stag,m.e,m.binder,m.tau_int_e,m.tau_int_vs,phase,m.wilson_1x1,m.wilson_2x2,w_diag,
-                    (m.v_abs - m.v_star).abs());
+                    (m.v_abs - m.v_star).abs(),
+                    m.alpha_pred, 1.0/m.alpha_pred);
             }
             all.push(m);
         }

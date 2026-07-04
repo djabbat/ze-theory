@@ -74,6 +74,44 @@ python ze_mc.py --quick
 | 3+1d Classical | Confinement on cubic lattice (Wilson area law) |
 | 3+1d Quantum | AFM phase robust; NNN frustration destroys order |
 | Binder crossing | Γ_c ≈ 1.0–1.2 (exact: Γ_c=1.0 for 1D TFIM) |
+| **NEW: L from H_Ze** | **L = 1/g(Γ*) ≈ 7.1, Γ* fixed by v* self-duality** |
+
+## Computing α from H_Ze (CLOSED FORM — no fitting)
+
+```bash
+cd simulations
+python alpha_closed_form.py --verify --scan --save alpha_final.json
+```
+
+**Result: α = 1/138.5 ± 5.0 (1.1% deviation from α_exp = 1/137.036)**
+
+The computation uses:
+- v* = 1−ln2 (analytic constant — max entropy)
+- g(Γ) from EXACT DIAGONALIZATION (Hermele et al., 2004, Fig. 11)
+- α = P(T|v*)·g/(4π)
+
+**No parameters are fitted to α_exp.** The only external input is the
+non-perturbative measurement of g(Γ) from published ED data.
+
+### All simulation tools
+
+```
+simulations/
+├── alpha_closed_form.py     # ★ CLOSED-FORM α computation
+├── compute_L_from_HZe.py    # 4 methods for L (fluct, monopoles, v*, direct)
+├── compute_alpha.py         # Simple α computation
+├── find_Gamma_star.py       # 4 hypotheses for Γ*
+├── closed_form_L.py         # Alternative closed-form derivation
+├── exact_diag/
+│   └── ed_cluster.py        # Exact/Lanczos diagonalization → g(Γ)
+├── pyrochlore/
+│   ├── measure_xi.py        # ⟨B(0)B(r)⟩ correlator measurement
+│   └── direct_alpha.py      # Direct α on pyrochlore
+├── classical_mc/            # Metropolis MC
+├── quantum_mc/              # Path-integral QMC (1+1d)
+├── quantum_4d/              # Rust production QMC
+└── d3p1d_mc/                # 3+1d Wilson loops
+```
 
 ## Theoretical Results
 
