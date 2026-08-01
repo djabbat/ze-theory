@@ -82,3 +82,36 @@ Ze provides a microscopic, binary realization of the FEP variational principle.
 - Levin, M.A. & Wen, X.-G. (2005). *Phys. Rev. B* 71, 045110 — string-net condensation
 - Friston, K. (2010). *Nat. Rev. Neurosci.* 11, 127 — free energy principle
 - Fields, C. et al. (2022). *Prog. Biophys. Mol. Biol.* 173, 36 — FEP for quantum systems
+
+## 10. Proper Time Synchrony Principle (PTSP) — NEW 2026-07-28
+
+### 10.1 Theorem
+
+If N subsystems are created with identical proper time τᵢ(t₀) = τ₀ and identical proper time flow rate dτᵢ/dt|t₀ = ω₀, then:
+
+1. **While** τᵢ(t) = τⱼ(t) for all i,j: **dS/dt = 0** (entropy conserved)
+2. **Once** ∃i,j: τᵢ(t) ≠ τⱼ(t): **dS/dt = κ · Var(τ) + O(Var²)**
+
+where Var(τ) = (1/N) Σᵢ (τᵢ − ⟨τ⟩)², κ > 0.
+
+### 10.2 Proof (Ze framework)
+
+Proper time for subsystem i: τᵢ = η · N_T⁽ⁱ⁾, where N_T⁽ⁱ⁾ is the count of T-events (prediction errors).
+
+When N_T⁽ⁱ⁾ = N_T⁽ʲ⁾ for all i,j, all conditional distributions p(zᵢ | N_T) are identical → joint entropy factorizes → dS/dt = 0.
+
+When N_T values diverge, p(zᵢ | N_T⁽ⁱ⁾) ≠ p(zⱼ | N_T⁽ʲ⁾) → additional microstates → dS/dt > 0, proportional to variance of τ.
+
+### 10.3 Three Applications
+
+| Domain | Meaning of τ | Consequence of Var(τ) > 0 |
+|--------|-------------|---------------------------|
+| **GR/Thermodynamics** | Proper time along worldlines | Gravity creates entropy; 2nd law = geometric effect |
+| **Ze-Hierarchy** | Bot battery voltage V_cap | Hierarchy emerges (HI ∝ Var(V_cap)) |
+| **MCARA/CEDAR** | Cellular counters (centriole, epigenetic, etc.) | Tissue aging; CEDAR resets Var(τ) → 0 for rejuvenation |
+
+### 10.4 Key Equation
+
+> dS(Σ)/dt = ∫ dμ(x) ∫ dμ(y) K(x,y) · |τ(x) − τ(y)|²
+
+Full document: `Ze_Model/PROPER_TIME_ENTROPY.md`
