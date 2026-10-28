@@ -1,4 +1,6 @@
 # Ze Theory — A Discrete Foundation for Gauge Fields and Fermions
+
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/djabbat/badge.svg)](https://hub.xerj.org/contributors/djabbat)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23405623.svg)](https://doi.org/10.5281/zenodo.23405623) 
 
 **Ze** is an interpretive framework that describes Z₂ lattice gauge theory in the language of active agents who minimize their existence time through prediction.
