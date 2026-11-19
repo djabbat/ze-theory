@@ -73,10 +73,10 @@
 
 | Claim | Evidence | Score |
 |-------|---------|:-----:|
-| α = P(T\|v*)·g/(4π) | Dimensional analysis + FEP | 7/10 |
+| α = P(S\|v*)·g/(4π) | Dimensional analysis + FEP | 7/10 |
 | g(Γ) measurable via ED | Hermele et al. (2004), Fig. 11 | 9/10 |
 | g(Γ=0.94) = 0.139 ± 0.005 | Published ED + extrapolation | 8/10 |
-| α_pred = 1/138.5 ± 5.0 | Computed from above | 8/10 |
+| α_pred = 1/137.4 ± 5.0 | Computed from above | 8/10 |
 | **No parameter fitting** | g from independent experiment | **10/10** |
 
 ### TIER 4: HYPOTHESES (explicitly marked as such)
@@ -110,7 +110,7 @@ The synthesis of (a) Z₂ gauge theory, (b) Free Energy Principle, and (c) Wheel
 
 | Approach | Author | Method | Status |
 |----------|--------|--------|--------|
-| **Ze Theory** | **Tqemaladze (2026)** | **Z₂ gauge → ED → g → α** | **1/138.5 (1.1%)** |
+| **Ze Theory** | **Tqemaladze (2026)** | **Z₂ gauge → ED → g → α** | **1/137.4, experiment inside ±5.0 (consistency check)** |
 | Eddington number | Eddington (1929) | α = 1/136 (numerology) | ❌ Disproven |
 | Group theory | Wyler (1969) | α from O(5) group volume | ❌ Disproven |
 | Stochastic QED | Gilson (1996) | Subquantum stochastic process | ❌ Not reproducible |
@@ -166,9 +166,9 @@ The synthesis of (a) Z₂ gauge theory, (b) Free Energy Principle, and (c) Wheel
 - Well-documented numerical methodology
 
 **Ze Theory as an α derivation:** ★★★★☆ (8/10)
-- The closed-form formula α = P(T|v*)·g/(4π) is the key achievement
+- The closed-form formula α = P(S|v*)·g/(4π) is the key achievement
 - g(Γ) from independent exact diagonalization — not fitted to α_exp
-- Result: 1/α = 138.5 ± 5.0 (1.1% deviation from experiment)
-- This is the strongest α derivation from first principles currently available
+- Result: 1/α = 137.4 ± 5.0; experiment (137.036) lies inside the band. The offset 0.36 is 7% of the error bar, so this is a consistency check, not an informative confirmation
+- Caveat: the functional form α ∝ g, the factor P(S|v*) and the value Γ/J_t ≈ 0.94 that sets g ≈ 0.14 are all postulated; the H_Ze ↔ XXZ link is not demonstrated (see PAPER.md §6)
 
 **Overall:** A serious, honest, and increasingly rigorous theoretical physics project with genuine conceptual novelty and a falsifiable prediction. The closed-form α computation achieved in this session represents a significant advance over previous versions.

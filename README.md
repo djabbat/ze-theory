@@ -7,8 +7,8 @@
 
 ## Core Concepts
 
-- **T** (Tension) — prediction error (costs existence time)
-- **S** (Stretch) — prediction confirmed (time is conserved)
+- **S** (Space) — prediction error (costs existence time)
+- **T** (Time) — prediction confirmed (time is conserved)
 - **Antiparallelism** S = −T — the fundamental symmetry
 
 ### Critical Point
@@ -86,12 +86,14 @@ cd simulations
 python alpha_closed_form.py --verify --scan --save alpha_final.json
 ```
 
-**Result: α = 1/138.5 ± 5.0 (1.1% deviation from α_exp = 1/137.036)**
+**Result: α = 1/137.4 ± 5.0 — the experimental value 1/137.036 lies inside the stated uncertainty.**
+
+The error bar is ±5.0 in 1/α, that is ±3.6%; the offset from experiment is 0.36, which is 7% of the error bar. The agreement is therefore a consistency check at the level of the stated uncertainty, not an independently informative confirmation, and it should be quoted that way.
 
 The computation uses:
 - v* = 1−ln2 (analytic constant — max entropy)
 - g(Γ) from EXACT DIAGONALIZATION (Hermele et al., 2004, Fig. 11)
-- α = P(T|v*)·g/(4π)
+- α = P(S|v*)·g/(4π)
 
 **No parameters are fitted to α_exp.** The only external input is the
 non-perturbative measurement of g(Γ) from published ED data.
@@ -144,7 +146,7 @@ simulations/
 
 **«Ze-теория: от Z₂-калибровочной теории к вычислению постоянной тонкой структуры»** (2026)
 
-Центральный результат: постоянная тонкой структуры α ≈ 1/137 вычислена из принципов Ze с точностью 2.2%.
+Центральный результат: α ≈ 1/137 воспроизводится в пределах заявленной неопределённости ±5.0 по 1/α (экспериментальное 137.036 лежит внутри полосы). Это проверка согласованности, а не вывод из первых принципов; смещение 0.36 составляет 7 % от ошибки, поэтому «0.3 % совпадения» заявлять нельзя.
 Файл: `Ze_теория_от_Z2_к_вычислению_альфа.md`.
 
 ## Author
