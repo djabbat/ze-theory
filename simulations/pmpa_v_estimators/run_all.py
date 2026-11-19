@@ -44,6 +44,11 @@ def main():
                 + (["--plot", "p6_birth.png"] if a.plot else []))
     code |= run("sim_isotopes.py", ["--all"]
                 + (["--plot", "p6_isotopes.png"] if a.plot else []))
+    code |= run("ed_two_slit.py", []
+                + (["--plot", "ed_two_slit.png"] if a.plot else []))
+    code |= run("charge_channel.py", [])
+    code |= run("decoherence_error.py", [])
+    code |= run("compton_frequency.py", [])
     print(f"\nall protocols finished (exit={code})")
     sys.exit(code)
 
