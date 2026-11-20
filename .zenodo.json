@@ -1,0 +1,20 @@
+{
+    "title": "Ze Theory — A Discrete Foundation for Gauge Fields and Fermions",
+    "description": "**Ze** is an interpretive framework that describes Z₂ lattice gauge theory in the language of active agents who minimize their existence time through prediction.",
+    "upload_type": "software",
+    "access_right": "open",
+    "creators": [
+        {
+            "name": "Tqemaladze, Jaba",
+            "orcid": "0000-0001-8651-7243",
+            "affiliation": "Georgia Longevity Alliance"
+        }
+    ],
+    "keywords": [
+        "longevity",
+        "centriole",
+        "aging",
+        "ze-theory"
+    ],
+    "license": "Apache-2.0"
+}
